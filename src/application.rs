@@ -3,7 +3,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::io::Cursor;
 
+use rodio::{Decoder, OutputStream, Sink};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
@@ -288,6 +290,9 @@ impl NotifyApplication {
                 }
 
                 app.send_notification(None, &gio_notif);
+                if let Err(e) = play_sound() {
+                    eprintln!("Error playing sound: {}", e);
+                }
             }
         });
         struct Proxies {
@@ -355,6 +360,25 @@ impl NotifyApplication {
         let window = NotifyWindow::new(self, client);
         *self.imp().window.borrow_mut() = window.downgrade();
     }
+}
+
+fn play_sound() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the audio output stream
+    let (_stream, stream_handle) = OutputStream::try_default()?;
+
+    // Create a new sink (a way to control audio playback)
+    let sink = Sink::try_new(&stream_handle)?;
+
+    // Use the sound file bundled at compile time
+    let sound_data = include_bytes!("./notification.wav");
+    let cursor = Cursor::new(sound_data);
+    let source = Decoder::new(cursor)?;
+
+    // Play the sound
+    sink.append(source);
+    sink.sleep_until_end();
+
+    Ok(())
 }
 
 impl Default for NotifyApplication {
